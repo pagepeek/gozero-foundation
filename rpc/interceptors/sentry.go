@@ -3,70 +3,37 @@ package interceptors
 import (
 	"context"
 	"fmt"
-	"os"
 	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/getsentry/sentry-go"
+	sentryx "github.com/pagepeek/gozero-foundation/pkg/sentry"
 	"github.com/samber/lo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// The identifier of the Go-Zero SDK.
-const (
-	sdkIdentifier = "sentry.go-zero"
-)
-
-type SentinelOption struct {
-	Dsn              string
-	Repanic          bool
-	Timeout          time.Duration
-	IgnoreCodes      []codes.Code
-	TracesSampleRate float64
-	TracesSampler    sentry.TracesSampler
+type SentryInterceptor struct {
+	opt SentryOption
 }
 
-type SentinelInterceptor struct {
-	reporter    *sentry.Client
-	timeout     time.Duration
-	repanic     bool
-	ignoreCodes []codes.Code
+type SentryOption struct {
+	sentryx.SentryOption
+
+	IgnoreCodes []codes.Code
 }
 
-func NewSentinelInterceptor(opt SentinelOption) *SentinelInterceptor {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "center-unknown"
-	}
-
-	err = sentry.Init(sentry.ClientOptions{
-		Dsn:              opt.Dsn,
-		EnableTracing:    true,
-		ServerName:       hostname,
-		TracesSampleRate: opt.TracesSampleRate,
-		TracesSampler:    opt.TracesSampler,
-	})
+func NewSentryInterceptor(opt SentryOption) *SentryInterceptor {
+	err := sentryx.Setup(opt.SentryOption)
 	if err != nil {
 		panic(err)
 	}
 
-	hub := sentry.CurrentHub()
-	client := hub.Client()
-	if client != nil {
-		client.SetSDKIdentifier(sdkIdentifier)
-	}
-
-	if opt.Timeout == 0 {
-		opt.Timeout = time.Second * 2
-	}
-
-	return &SentinelInterceptor{reporter: client, repanic: opt.Repanic, timeout: opt.Timeout, ignoreCodes: opt.IgnoreCodes}
+	return &SentryInterceptor{opt: opt}
 }
 
-func (i *SentinelInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
+func (i *SentryInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		var resp any
 		err := i.handle(ctx, info.FullMethod, func() error {
@@ -80,7 +47,7 @@ func (i *SentinelInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-func (i *SentinelInterceptor) StreamInterceptor() grpc.StreamServerInterceptor {
+func (i *SentryInterceptor) StreamInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, s grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		err := i.handle(s.Context(), info.FullMethod, func() error {
 			return handler(srv, s)
@@ -90,7 +57,7 @@ func (i *SentinelInterceptor) StreamInterceptor() grpc.StreamServerInterceptor {
 	}
 }
 
-func (i *SentinelInterceptor) handle(ctx context.Context, name string, next func() error) (err error) {
+func (i *SentryInterceptor) handle(ctx context.Context, name string, next func() error) (err error) {
 	hub := sentry.GetHubFromContext(ctx)
 	if hub == nil {
 		hub = sentry.CurrentHub().Clone()
@@ -121,7 +88,7 @@ func (i *SentinelInterceptor) handle(ctx context.Context, name string, next func
 		} else {
 			status := stErr.GRPCStatus()
 			// 业务错误不做记录
-			if lo.Contains(i.ignoreCodes, status.Code()) {
+			if lo.Contains(i.opt.IgnoreCodes, status.Code()) {
 				return
 			}
 
@@ -167,20 +134,20 @@ func (i *SentinelInterceptor) handle(ctx context.Context, name string, next func
 			hub.CaptureException(stErr.GRPCStatus().Err())
 		}
 
-		hub.Flush(i.timeout)
+		hub.Flush(i.opt.Timeout)
 	}
 
 	return
 }
 
-func (i *SentinelInterceptor) report(hub *sentry.Hub, err error) error {
+func (i *SentryInterceptor) report(hub *sentry.Hub, err error) error {
 	eventID := hub.Recover(err)
 
 	if eventID != nil {
-		hub.Flush(i.timeout)
+		hub.Flush(i.opt.Timeout)
 	}
 
-	if i.repanic {
+	if i.opt.Repanic {
 		panic(err)
 	}
 
