@@ -30,6 +30,7 @@ func handle(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, opt s
 	if hub == nil {
 		hub = sentry.CurrentHub().Clone()
 	}
+
 	transaction := sentry.StartTransaction(
 		sentry.SetHubOnContext(ctx, hub),
 		fmt.Sprintf("%s %s", r.Method, r.URL.Path),
@@ -45,6 +46,8 @@ func handle(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, opt s
 			},
 		}...,
 	)
+
+	hub.Scope().SetRequest(r)
 
 	defer transaction.Finish()
 	defer func() {
