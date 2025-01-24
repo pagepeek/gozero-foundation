@@ -1,7 +1,7 @@
 # 下载
 
 ```bash
-go install github.com/pagepeek/gozero-foundation@latest
+go get github.com/pagepeek/gozero-foundation@latest
 ```
 
 ## rpc服务使用sentry
