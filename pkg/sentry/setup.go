@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"google.golang.org/grpc/codes"
 )
 
 // The identifier of the Go-Zero SDK.
@@ -14,20 +15,32 @@ const (
 
 type SentryOption struct {
 	sentry.ClientOptions
-	Repanic bool
-	Timeout time.Duration
+	Dsn              string
+	EnableTracing    bool
+	TracesSampleRate float64
+	TracesSampler    sentry.TracesSampler
+	Repanic          bool
+	Timeout          time.Duration
+	IgnoreCodes      []codes.Code
 }
 
 func Setup(opt SentryOption) error {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "center-unknown"
+	if opt.ServerName == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			hostname = "gozero-unknown"
+		}
+
+		opt.ServerName = hostname
 	}
 
-	opt.ClientOptions.ServerName = hostname
+	opt.ClientOptions.Dsn = opt.Dsn
+	opt.ClientOptions.EnableTracing = opt.EnableTracing
+	opt.ClientOptions.TracesSampleRate = opt.TracesSampleRate
+	opt.ClientOptions.TracesSampler = opt.TracesSampler
+	opt.ClientOptions.ServerName = opt.ServerName
 
-	err = sentry.Init(opt.ClientOptions)
-	if err != nil {
+	if err := sentry.Init(opt.ClientOptions); err != nil {
 		return err
 	}
 

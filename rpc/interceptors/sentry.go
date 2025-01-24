@@ -15,17 +15,11 @@ import (
 )
 
 type SentryInterceptor struct {
-	opt SentryOption
+	opt sentryx.SentryOption
 }
 
-type SentryOption struct {
-	sentryx.SentryOption
-
-	IgnoreCodes []codes.Code
-}
-
-func NewSentryInterceptor(opt SentryOption) *SentryInterceptor {
-	err := sentryx.Setup(opt.SentryOption)
+func NewSentryInterceptor(opt sentryx.SentryOption) *SentryInterceptor {
+	err := sentryx.Setup(opt)
 	if err != nil {
 		panic(err)
 	}
