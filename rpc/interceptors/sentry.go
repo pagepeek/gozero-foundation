@@ -60,6 +60,7 @@ func (i *SentryInterceptor) handle(ctx context.Context, name string, next func()
 	transaction := sentry.StartTransaction(sentry.SetHubOnContext(ctx, hub), name,
 		[]sentry.SpanOption{
 			sentry.WithOpName("rpc.server"),
+			sentry.WithTransactionName(name),
 			sentry.WithTransactionSource(sentry.SourceCustom),
 			sentry.WithSpanOrigin(sentry.SpanOriginManual),
 			func(s *sentry.Span) {

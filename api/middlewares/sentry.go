@@ -36,6 +36,7 @@ func handle(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, opt s
 		[]sentry.SpanOption{
 			sentry.ContinueTrace(hub, r.Header.Get(sentry.SentryTraceHeader), r.Header.Get(sentry.SentryBaggageHeader)),
 			sentry.WithOpName("http.server"),
+			sentry.WithTransactionName(fmt.Sprintf("%s %s", r.Method, r.URL.Path)),
 			sentry.WithTransactionSource(sentry.SourceRoute),
 			sentry.WithSpanOrigin(sentry.SpanOriginManual),
 			func(s *sentry.Span) {
